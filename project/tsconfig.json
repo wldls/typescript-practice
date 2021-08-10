@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "target": "ES5",
+    "lib": [
+      "ES2015",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "outDir": "./built",
+    "moduleResolution": "Node"
+  },
+  "include": [
+    "./src/**/*"
+  ]
+}
