@@ -8,8 +8,9 @@
       "DOM.Iterable"
     ],
     "noImplicitAny": true,
-    "outDir": "./built",
-    "moduleResolution": "Node"
+    "outDir": "./dist",
+    "moduleResolution": "Node",
+    "strict": true,
   },
   "include": [
     "./src/**/*"

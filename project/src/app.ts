@@ -9,8 +9,12 @@ import {
 } from './covid/index';
 
 // utils
-function $(selector: string) {
-  return document.querySelector(selector);
+// dom 함수로 접근할 때 어떤 타입을 반환 받을 것이다. 라고 명시 -> 제네릭 사용
+// HTMLElement 하위 타입만 반환받을 수 있도록 제한 -> extends 사용
+// 기본값을 HTMLDivElement로 지정 -> div인 경우 제네릭에 따로 명시해줄 필요가 없다
+function $<T extends HTMLElement = HTMLDivElement>(selector: string) {
+  const element = document.querySelector(selector);
+  return element as T;
 }
 function getUnixTimestamp(date: Date | string) {
   return new Date(date).getTime();
@@ -19,13 +23,14 @@ function getUnixTimestamp(date: Date | string) {
 // DOM
 // Element | HTMLElement | HTMLParagraphElement
 // 타입 간 호환할 수 있는 형태가 아니기 때문에 호환할 수 있는 형태로 타입 단언을 사용
-const confirmedTotal = $('.confirmed-total') as HTMLSpanElement;
-const deathsTotal = $('.deaths') as HTMLParagraphElement;
-const recoveredTotal = $('.recovered') as HTMLParagraphElement;
-const lastUpdatedTime = $('.last-updated-time') as HTMLParagraphElement;
-const rankList = $('.rank-list');
-const deathsList = $('.deaths-list');
-const recoveredList = $('.recovered-list');
+const temp = $('.abc');
+const confirmedTotal = $<HTMLSpanElement>('.confirmed-total');
+const deathsTotal = $<HTMLParagraphElement>('.deaths');
+const recoveredTotal = $<HTMLParagraphElement>('.recovered');
+const lastUpdatedTime = $<HTMLParagraphElement>('.last-updated-time');
+const rankList = $<HTMLOListElement>('.rank-list');
+const deathsList = $<HTMLOListElement>('.deaths-list');
+const recoveredList = $<HTMLOListElement>('.recovered-list');
 const deathSpinner = createSpinnerElement('deaths-spinner');
 const recoveredSpinner = createSpinnerElement('recovered-spinner');
 
@@ -46,7 +51,6 @@ function createSpinnerElement(id: string) {
 
 // state
 let isDeathLoading = false;
-const isRecoveredLoading = false;
 
 // api
 function fetchCovidSummary(): Promise<AxiosResponse<CovidSummaryResponse>> {
@@ -60,7 +64,7 @@ enum CovidStatus {
   Deaths = 'deaths',
 }
 function fetchCountryInfo(
-  countryName: string,
+  countryName: string | undefined,
   status: CovidStatus
 ): Promise<AxiosResponse<CountrySummaryResponse>> {
   // params: confirmed, recovered, deaths
@@ -76,16 +80,21 @@ function startApp() {
 
 // events
 function initEvents() {
+  if (!rankList) {
+    return;
+  }
   rankList.addEventListener('click', handleListClick);
 }
 
-async function handleListClick(event: MouseEvent) {
+async function handleListClick(event: Event) {
   let selectedId;
   if (
     event.target instanceof HTMLParagraphElement ||
     event.target instanceof HTMLSpanElement
   ) {
-    selectedId = event.target.parentElement.id;
+    selectedId = event.target.parentElement
+      ? event.target.parentElement.id
+      : undefined;
   }
   if (event.target instanceof HTMLLIElement) {
     selectedId = event.target.id;
@@ -133,12 +142,20 @@ function setDeathsList(data: CountrySummaryResponse) {
     p.textContent = new Date(value.Date).toLocaleDateString().slice(0, -1);
     li.appendChild(span);
     li.appendChild(p);
-    deathsList.appendChild(li);
+    // 기존 null 타입 체크
+    // if(!deathsList){
+    //   return false;
+    // }
+    // 타입이 null이 아니라고 타입 단언함 -> 보이지 않는 사각지대에서 오류가 생길 수 있으므로 신중하게 사용해야 함
+    deathsList!.appendChild(li);
   });
 }
 
 function clearDeathList() {
-  deathsList.innerHTML = null;
+  if (!deathsList) {
+    return;
+  }
+  deathsList.innerHTML = '';
 }
 
 function setTotalDeathsByCountry(data: CountrySummaryResponse) {
@@ -160,12 +177,21 @@ function setRecoveredList(data: CountrySummaryResponse) {
     p.textContent = new Date(value.Date).toLocaleDateString().slice(0, -1);
     li.appendChild(span);
     li.appendChild(p);
-    recoveredList.appendChild(li);
+
+    // 옵셔널 체이닝 오퍼레이터 사용 -> !보다 ?를 사용하는걸 권장
+    recoveredList?.appendChild(li);
+
+    // 옵셔널 체이닝 오퍼레이터가 의미하는 내용은 아래 코드 참고
+    // if(recoveredList === null || recoveredList === undefined) {
+    //   return;
+    // }else {
+    //   recoveredList.appendChild(li);
+    // }
   });
 }
 
 function clearRecoveredList() {
-  recoveredList.innerHTML = null;
+  recoveredList.innerHTML = '';
 }
 
 function setTotalRecoveredByCountry(data: CountrySummaryResponse) {
@@ -191,9 +217,9 @@ async function setupData() {
   setLastUpdatedTimestamp(data);
 }
 
-function renderChart(data: any, labels: any) {
-  let ctx: any = $('#lineChart');
-  ctx = ctx.getContext('2d');
+function renderChart(data: number[], labels: string[]) {
+  const lineChart = $('#lineChart') as HTMLCanvasElement;
+  const ctx = lineChart.getContext('2d');
   Chart.defaults.color = '#f5eaea';
   Chart.defaults.font.family = 'Exo 2';
   new Chart(ctx, {
@@ -213,11 +239,13 @@ function renderChart(data: any, labels: any) {
   });
 }
 
-function setChartData(data: any) {
-  const chartData = data.slice(-14).map((value: any) => value.Cases);
+function setChartData(data: CountrySummaryResponse) {
+  const chartData = data
+    .slice(-14)
+    .map((value: CountrySummaryInfo) => value.Cases);
   const chartLabel = data
     .slice(-14)
-    .map((value: any) =>
+    .map((value: CountrySummaryInfo) =>
       new Date(value.Date).toLocaleDateString().slice(5, -1)
     );
   renderChart(chartData, chartLabel);
